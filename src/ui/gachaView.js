@@ -1,5 +1,5 @@
 /**
- * @fileoverview Gacha pull UI with card-flip animation and item inventory tab.
+ * @fileoverview Gacha pull UI with card-flip animation, canvas pig/feed previews.
  */
 
 import { GACHA_POOLS } from '../data/gachaPools.js';
@@ -7,6 +7,8 @@ import { PIG_TYPE_MAP, RARITY_LABELS, RARITY_COLORS } from '../data/pigTypes.js'
 import { FEED_TYPE_MAP, FEED_RARITY_LABELS } from '../data/feedTypes.js';
 import { PEN_TIER_MAP } from '../data/penTiers.js';
 import { ITEM_TYPE_MAP } from '../data/itemTypes.js';
+import { drawFeedIcon } from '../rendering/feedIcons.js';
+import { drawPig } from '../rendering/pigRenderer.js';
 import { alert } from './modal.js';
 
 /**
@@ -28,7 +30,7 @@ export function renderGachaView(state, engine) {
     poolsEl.appendChild(buildPoolCard(pool, state, engine));
   }
 
-  renderItemInventory(state, container.querySelector('#item-inventory'));
+  renderItemInventory(state, container.querySelector('#item-inventory'), engine);
 }
 
 function buildPoolCard(pool, state, engine) {
@@ -44,28 +46,20 @@ function buildPoolCard(pool, state, engine) {
     </div>
     <div class="gacha-pity">保底進度：${pity}/${pityMax}</div>
     <div class="gacha-btns">
-      <button class="btn btn-primary gacha-single" data-pool="${pool.id}">
-        單抽 ${pool.singleCost}金
-      </button>
-      <button class="btn btn-secondary gacha-ten" data-pool="${pool.id}">
-        十連 ${pool.tenCost}金
-      </button>
+      <button class="btn btn-primary gacha-single" data-pool="${pool.id}">單抽 ${pool.singleCost}金</button>
+      <button class="btn btn-secondary gacha-ten" data-pool="${pool.id}">十連 ${pool.tenCost}金</button>
     </div>
   `;
 
   card.querySelector('.gacha-single').addEventListener('click', () => doGacha(pool.id, 1, state, engine));
   card.querySelector('.gacha-ten').addEventListener('click', () => doGacha(pool.id, 10, state, engine));
-
   return card;
 }
 
 function doGacha(poolId, count, state, engine) {
   const pool = GACHA_POOLS[poolId];
   const cost = count === 10 ? pool.tenCost : pool.singleCost;
-  if (state.coins < cost) {
-    alert('金幣不足', `需要 ${cost} 金幣才能抽卡。`);
-    return;
-  }
+  if (state.coins < cost) { alert('金幣不足', `需要 ${cost} 金幣才能抽卡。`); return; }
   const results = engine.gachaPull(poolId, count);
   showGachaResults(results, poolId);
 }
@@ -87,18 +81,13 @@ function showGachaResults(results, poolId) {
   for (const result of results) {
     grid.appendChild(buildResultCard(result, poolId));
   }
-
   resultEl.appendChild(grid);
 
   const closeBtn = document.createElement('button');
   closeBtn.className = 'btn btn-primary';
   closeBtn.textContent = '收下！';
-  closeBtn.addEventListener('click', () => {
-    resultEl.classList.add('hidden');
-    resultEl.innerHTML = '';
-  });
+  closeBtn.addEventListener('click', () => { resultEl.classList.add('hidden'); resultEl.innerHTML = ''; });
   resultEl.appendChild(closeBtn);
-
   resultEl.scrollIntoView({ behavior: 'smooth' });
 }
 
@@ -106,35 +95,26 @@ function buildResultCard(result, poolId) {
   const card = document.createElement('div');
   card.className = 'result-card flip-in';
 
-  let emoji = '❓';
-  let name = '';
-  let rarityLabel = '';
-  let color = '#aaa';
-  let extra = '';
+  let name = ''; let rarityLabel = ''; let color = '#aaa'; let extra = '';
 
   if (poolId === 'pig') {
     const breed = PIG_TYPE_MAP[result.value];
-    emoji = breed.emoji;
     name = breed.name;
     rarityLabel = RARITY_LABELS[breed.rarity];
     color = RARITY_COLORS[breed.rarity];
     if (result.noSpace) extra = '<div class="result-extra warn">⚠️ 豬舍已滿，豬豬走失了…</div>';
-    // Dragon flies!
     if (breed.id === 'dragon') card.classList.add('legendary-glow');
   } else if (poolId === 'feed') {
     const feed = FEED_TYPE_MAP[result.value];
-    emoji = feed.emoji;
     name = feed.name;
     rarityLabel = FEED_RARITY_LABELS[feed.rarity];
     extra = '<div class="result-extra">×3 份</div>';
   } else if (poolId === 'pen') {
     const tier = PEN_TIER_MAP[result.value];
-    emoji = tier.emoji;
     name = tier.name;
     rarityLabel = `Tier ${tier.tier}`;
   } else if (poolId === 'item') {
     const item = ITEM_TYPE_MAP[result.value];
-    emoji = item.emoji;
     name = item.name;
     rarityLabel = '道具';
   }
@@ -142,15 +122,45 @@ function buildResultCard(result, poolId) {
   card.style.setProperty('--result-color', color);
   card.innerHTML = `
     <div class="result-color-bar"></div>
-    <div class="result-emoji">${emoji}</div>
+    <canvas class="result-preview-canvas" width="60" height="60"></canvas>
     <div class="result-name">${name}</div>
-    <div class="result-rarity">${rarityLabel}</div>
+    <div class="result-rarity" style="color:${color}">${rarityLabel}</div>
     ${extra}
   `;
+
+  // Draw preview
+  const c = card.querySelector('.result-preview-canvas');
+  const ctx = c.getContext('2d');
+  if (poolId === 'pig') {
+    const breed = PIG_TYPE_MAP[result.value];
+    let t = 0;
+    function anim() {
+      ctx.clearRect(0, 0, 60, 60);
+      drawPig(ctx, 30, 32, breed.id, breed.genderBias >= 0.5, 'idle', 0, t, false, false);
+      t += 16;
+      if (card.isConnected) requestAnimationFrame(anim);
+    }
+    anim();
+  } else if (poolId === 'feed') {
+    drawFeedIcon(ctx, result.value, 30, 32, 22);
+  } else if (poolId === 'pen') {
+    const tier = PEN_TIER_MAP[result.value];
+    ctx.font = '36px serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(tier.emoji, 30, 32);
+  } else if (poolId === 'item') {
+    const item = ITEM_TYPE_MAP[result.value];
+    ctx.font = '36px serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(item.emoji, 30, 32);
+  }
+
   return card;
 }
 
-function renderItemInventory(state, container) {
+function renderItemInventory(state, container, engine) {
   if (!container) return;
   container.innerHTML = '';
   const items = Object.entries(state.itemInventory ?? {}).filter(([, qty]) => qty > 0);
@@ -170,14 +180,14 @@ function renderItemInventory(state, container) {
       <div class="item-info">
         <div class="item-name">${item.name} ×${qty}</div>
         <div class="item-desc">${item.description}</div>
-        ${!item.autoUse ? `<button class="btn btn-sm btn-secondary" data-item="${id}">手動使用</button>` : '<span class="auto-badge">自動觸發</span>'}
+        ${!item.autoUse
+          ? `<button class="btn btn-sm btn-secondary" data-item="${id}">手動使用</button>`
+          : '<span class="auto-badge">⚡ 自動觸發</span>'}
       </div>
     `;
     const useBtn = card.querySelector('[data-item]');
     if (useBtn) {
-      useBtn.addEventListener('click', () => {
-        import('../game.js'); // no-op, engine passed via closure not imported
-      });
+      useBtn.addEventListener('click', () => engine.useItem(id));
     }
     container.appendChild(card);
   }

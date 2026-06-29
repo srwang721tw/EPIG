@@ -51,9 +51,10 @@
     #app {
       display: flex;
       flex-direction: column;
-      min-height: 100dvh;
+      height: 100dvh;
       max-width: 600px;
       margin: 0 auto;
+      overflow: hidden;
     }
 
     /* ── HUD ───────────────────────────────────────────────────────────── */
@@ -275,6 +276,7 @@
       height: 4px;
       background: var(--rarity-color, #ddd);
     }
+    .shop-pig-canvas, .shop-feed-canvas { display: block; margin: 6px auto 2px; }
     .shop-emoji { font-size: 2rem; margin: 6px 0; }
     .shop-name { font-size: 0.9rem; font-weight: 800; margin-bottom: 2px; }
     .shop-rarity { font-size: 0.75rem; color: var(--rarity-color, var(--color-text-light)); font-weight: 700; margin-bottom: 6px; }
@@ -388,9 +390,19 @@
     .modal-body { margin-bottom: 16px; }
     .modal-buttons { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
 
+    /* ── Canvas Pen View ────────────────────────────────────────────────── */
+    .pen-canvas-wrap { margin: 10px 0; border-radius: 10px; overflow: hidden; }
+    .pen-canvas-wrap canvas { display: block; width: 100%; border-radius: 10px; }
+
+    /* ── Gacha result canvas ────────────────────────────────────────────── */
+    .result-preview-canvas { display: block; margin: 4px auto 2px; }
+
     /* ── Pig Detail Modal ───────────────────────────────────────────────── */
     .pig-detail { }
+    .detail-pig-preview { flex-shrink: 0; }
+    .detail-pig-preview canvas { display: block; border-radius: 50%; background: var(--color-surface2); }
     .detail-header { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; }
+    .stat-label { font-size: 0.8rem; min-width: 56px; }
     .detail-emoji { font-size: 2.5rem; }
     .detail-name { font-size: 1.1rem; font-weight: 800; }
     .detail-breed { font-size: 0.82rem; color: var(--color-text-light); }
